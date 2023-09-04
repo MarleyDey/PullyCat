@@ -6,13 +6,14 @@ import (
 )
 
 func main() {
-	menu := cli.NewMenu("Chose a colour")
 
-	menu.AddItem("Red", "red")
-	menu.AddItem("Blue", "blue")
-	menu.AddItem("Green", "green")
-	menu.AddItem("Yellow", "yellow")
-	menu.AddItem("Cyan", "cyan")
+	menu := cli.NewMultiSelectMenu("Chose a colour", -1, -1)
+
+	menu.AddOption("Red", "red")
+	menu.AddOption("Blue", "blue")
+	menu.AddOption("Green", "green")
+	menu.AddOption("Yellow", "yellow")
+	menu.AddOption("Cyan", "cyan")
 
 	choice := menu.Display()
 

@@ -6,34 +6,55 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+type MenuType int
+
+const (
+	MenuTypeSelect       MenuType = 1
+	MenuTypeMultiSelect  MenuType = 2
+	MenuTypeConfirmation MenuType = 3
+)
+
 type Menu struct {
+	MenuType  MenuType
 	Prompt    string
 	CursorPos int
-	MenuItems []*MenuItem
+	Options   []MenuOption
+	min       int
+	max       int
 }
 
-type MenuItem struct {
-	Text    string
-	ID      string
-	SubMenu *Menu
+type MenuOption struct {
+	ID       string
+	Text     string
+	selected bool
+	// subMenu  *Menu
 }
 
-func NewMenu(prompt string) *Menu {
-	return &Menu{
-		Prompt:    prompt,
-		MenuItems: make([]*MenuItem, 0),
+func NewSelectMenu(prompt string, options ...MenuOption) *Menu {
+	if options == nil {
+		options = make([]MenuOption, 0)
 	}
+	return &Menu{MenuType: MenuTypeSelect, Prompt: prompt, CursorPos: 0, Options: options, min: 1, max: 1}
 }
 
-// AddItem will add a new menu option to the menu list
-func (m *Menu) AddItem(option string, id string) *Menu {
-	menuItem := &MenuItem{
-		Text: option,
-		ID:   id,
+func NewMultiSelectMenu(prompt string, min int, max int, options ...MenuOption) *Menu {
+	if options == nil {
+		options = make([]MenuOption, 0)
 	}
+	return &Menu{MenuType: MenuTypeMultiSelect, Prompt: prompt, CursorPos: 0, Options: options, min: min, max: max}
+}
 
-	m.MenuItems = append(m.MenuItems, menuItem)
-	return m
+func NewConfirmationMenu(prompt string, options ...MenuOption) *Menu {
+	if options == nil {
+		options = make([]MenuOption, 0)
+	}
+	return &Menu{MenuType: MenuTypeConfirmation, Prompt: prompt, CursorPos: 0, Options: options, min: 1, max: 1}
+}
+
+// AddOption will add a new menu option to the select menu list
+func (m *Menu) AddOption(id string, text string) {
+	optionItem := MenuOption{ID: id, Text: text, selected: false}
+	m.Options = append(m.Options, optionItem)
 }
 
 // renderMenuItems prints the menu item list.
@@ -45,12 +66,12 @@ func (m *Menu) renderMenuItems(redraw bool) {
 		//
 		// This is done by sending a VT100 escape code to the terminal
 		// @see http://www.climagic.org/mirrors/VT100_Escape_Codes.html
-		fmt.Printf("\033[%dA", len(m.MenuItems)-1)
+		fmt.Printf("\033[%dA", len(m.Options)-1)
 	}
 
-	for index, menuItem := range m.MenuItems {
+	for index, menuItem := range m.Options {
 		var newline = "\n"
-		if index == len(m.MenuItems)-1 {
+		if index == len(m.Options)-1 {
 			// Adding a new line on the last option will move the cursor position out of range
 			// For out redrawing
 			newline = ""
@@ -58,9 +79,28 @@ func (m *Menu) renderMenuItems(redraw bool) {
 
 		menuItemText := menuItem.Text
 		cursor := "  "
-		if index == m.CursorPos {
-			cursor = tm.Color("> ", tm.YELLOW)
-			menuItemText = tm.Color(menuItemText, tm.YELLOW)
+		// single select menu
+		if m.MenuType == MenuTypeSelect {
+			if index == m.CursorPos {
+				cursor = tm.Color("> ", tm.YELLOW)
+				menuItemText = tm.Color(menuItemText, tm.YELLOW)
+			}
+			// multi select menu
+		} else if m.MenuType == MenuTypeMultiSelect {
+			if menuItem.selected {
+				cursor = fmt.Sprintf("[%s] ", tm.Color("*", tm.BLUE))
+			} else {
+				cursor = "[ ] "
+			}
+
+			if index == m.CursorPos {
+				menuItemText = tm.Color(menuItemText, tm.BLUE)
+			}
+			// confirmation menu
+		} else if m.MenuType == MenuTypeConfirmation {
+			// TODO
+		} else {
+			// TODO Error
 		}
 
 		fmt.Printf("\r%s %s%s", cursor, menuItemText, newline)
@@ -87,18 +127,26 @@ func (m *Menu) Display() string {
 	fmt.Printf("\033[?25l")
 
 	for {
-		key := termbox.PollEvent().Key
-		if key == termbox.KeyEsc {
+
+		switch termbox.PollEvent().Key {
+		case termbox.KeyEsc:
 			return ""
-		} else if key == termbox.KeyEnter {
-			menuItem := m.MenuItems[m.CursorPos]
+		case termbox.KeyEnter:
+			menuItem := m.Options[m.CursorPos]
 			fmt.Println("\r")
 			return menuItem.ID
-		} else if key == termbox.KeyArrowUp {
-			m.CursorPos = (m.CursorPos + len(m.MenuItems) - 1) % len(m.MenuItems)
+		case termbox.KeySpace:
+			if m.MenuType == MenuTypeMultiSelect {
+				m.Options[m.CursorPos].selected = !m.Options[m.CursorPos].selected
+				m.renderMenuItems(true)
+			}
+			//menuItem := m.Options[m.CursorPos]
+			//fmt.Println("\r")
+		case termbox.KeyArrowUp:
+			m.CursorPos = (m.CursorPos + len(m.Options) - 1) % len(m.Options)
 			m.renderMenuItems(true)
-		} else if key == termbox.KeyArrowDown {
-			m.CursorPos = (m.CursorPos + 1) % len(m.MenuItems)
+		case termbox.KeyArrowDown:
+			m.CursorPos = (m.CursorPos + 1) % len(m.Options)
 			m.renderMenuItems(true)
 		}
 	}
